@@ -1,0 +1,55 @@
+// This file is part of nand2tetris, as taught in The Hebrew University,
+// and was written by Aviv Yaish, and is published under the Creative 
+// Common Attribution-NonCommercial-ShareAlike 3.0 Unported License 
+// https://creativecommons.org/licenses/by-nc-sa/3.0/
+
+// This chip is an extension of the regular CPU that uses the extended ALU.
+// If instruction[15]==0 or (instruction[14] and instruction[13] equals 1)
+// the CpuMul behave exactly as the same as the regular CPU.
+// If the instruction is a c-instruction and instruction[14] == 0, the chip will 
+// behave as follows:
+//  Instruction  | 12 | 11 | 10 |
+// ______________________________
+// dest=D<<;jump | 0  | 1  | 1  |
+// dest=A<<;jump | 0  | 1  | 0  |
+// dest=M<<;jump | 1  | 1  | 0  |
+// dest=D>>;jump | 0  | 0  | 1  |
+// dest=A>>;jump | 0  | 0  | 0  |
+// dest=M>>;jump | 1  | 0  | 0  |
+
+CHIP CpuMul {
+    IN  inM[16],         // M value input  (M = contents of RAM[A])
+        instruction[16], // Instruction for execution
+        reset;           // Signals whether to re-start the current
+                         // program (reset=1) or continue executing
+                         // the current program (reset=0).
+    OUT outM[16],        // M value output
+        writeM,          // Write into M? 
+        addressM[15],    // Address in data memory (of M)
+        pc[15];          // address of next instruction
+    
+    PARTS:
+
+    Mux16(a=instruction, b=alucalc, sel=instruction[15], out=toa);
+    Not(in=instruction[15], out=notop);
+    Or(a=notop, b=instruction[5], out=loada);
+    ARegister(in=toa, load=loada, out[0..14]=addressM, out=aout);
+    Mux16(a=aout, b=inM, sel=instruction[12], out=aorm);
+    And(a=instruction[15], b=instruction[4], out=loadd);
+    And(a=instruction[15], b=instruction[3], out=writeM);
+    DRegister(in=alucalc, load=loadd, out=dout);
+    ExtendAlu(x=dout , y=aorm , instruction=instruction[6..14], out = outM, out=alucalc, zr=tmpzr, ng=tmpng);
+    And(a=instruction[2], b=tmpng, out=tmp1);
+    And(a=instruction[1], b=tmpzr, out=tmp2);
+    Not(in=tmpzr, out=ntmpzr);
+    Not(in=tmpng, out=ntmpng);
+    And(a=instruction[0], b=ntmpzr, out=tmp3);
+    And(a=tmp3, b=ntmpng, out=tmp4);
+    Or(a=tmp1, b=tmp2, out=or12);
+    Or(a=or12, b=tmp4, out=or124);
+    And(a=or124, b=instruction[15], out=loadpc);
+    PC(in=aout, load=loadpc, inc=true, reset=reset, out[0..14]=pc);
+        
+
+
+}
